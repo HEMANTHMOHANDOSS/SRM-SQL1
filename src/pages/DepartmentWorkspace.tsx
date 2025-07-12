@@ -1,9 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/PythonAuthContext';
-
-
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -68,58 +65,38 @@ const DepartmentWorkspace = () => {
 
   const fetchDepartmentWorkspace = async () => {
     try {
-      // Fetch department info
-      const { data: deptData, error: deptError } = await supabase
-        .from('departments')
-        .select('*')
-        .eq('id', deptId)
-        .single();
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
 
-      if (deptError) throw deptError;
+      // Fetch department info
+      const deptRes = await fetch('http://localhost:5000/api/departments', { headers });
+      const deptData = await deptRes.json();
+      const department = deptData.find((d: Department) => d.id === deptId);
+
+      if (!department) {
+        throw new Error('Department not found');
+      }
 
       // Fetch subjects
-      const { data: subjectData, error: subjectError } = await supabase
-        .from('subjects')
-        .select('*')
-        .eq('department_id', deptId)
-        .order('name');
-
-      if (subjectError) throw subjectError;
+      const subjectRes = await fetch('http://localhost:5000/api/subjects', { headers });
+      const subjectData = await subjectRes.json();
 
       // Fetch staff
-      const { data: staffData, error: staffError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('department_id', deptId)
-        .eq('role', 'staff')
-        .order('name');
-
-      if (staffError) throw staffError;
+      const staffRes = await fetch('http://localhost:5000/api/staff', { headers });
+      const staffData = await staffRes.json();
 
       // Fetch classrooms
-      const { data: classroomData, error: classroomError } = await supabase
-        .from('classrooms')
-        .select('*')
-        .eq('department_id', deptId)
-        .order('name');
-
-      if (classroomError) throw classroomError;
+      const classroomRes = await fetch('http://localhost:5000/api/classrooms', { headers });
+      const classroomData = await classroomRes.json();
 
       // Fetch timetable
-      const { data: timetableData, error: timetableError } = await supabase
-        .from('timetables')
-        .select(`
-          *,
-          subjects (id, name, code, credits),
-          profiles (id, name, staff_role),
-          classrooms (id, name, capacity)
-        `)
-        .eq('department_id', deptId)
-        .order('day, time_slot');
+      const timetableRes = await fetch(`http://localhost:5000/api/timetables?department_id=${deptId}`, { headers });
+      const timetableData = await timetableRes.json();
 
-      if (timetableError) throw timetableError;
-
-      setDepartment(deptData);
+      setDepartment(department);
       setSubjects(subjectData || []);
       setStaff(staffData || []);
       setClassrooms(classroomData || []);
@@ -341,7 +318,7 @@ const DepartmentWorkspace = () => {
                         </div>
                         <p className="text-sm text-gray-600">
                           Subjects: {member.subjects_selected ? 
-                            JSON.parse(member.subjects_selected).length : 0}
+                            member.subjects_selected.split(',').length : 0}
                         </p>
                       </CardContent>
                     </Card>

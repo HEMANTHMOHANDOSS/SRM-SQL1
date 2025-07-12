@@ -1,10 +1,8 @@
-
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-
 import { toast } from '../hooks/use-toast';
 
 interface CreateDepartmentDialogProps {
@@ -25,20 +23,30 @@ const CreateDepartmentDialog = ({ open, onOpenChange, onDepartmentCreated }: Cre
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('departments')
-        .insert([formData]);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Department created successfully",
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('http://localhost:5000/api/departments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
       });
 
-      setFormData({ name: '', code: '' });
-      onOpenChange(false);
-      onDepartmentCreated();
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Department created successfully",
+        });
+
+        setFormData({ name: '', code: '' });
+        onOpenChange(false);
+        onDepartmentCreated();
+      } else {
+        throw new Error(result.error || 'Failed to create department');
+      }
     } catch (error) {
       console.error('Error creating department:', error);
       toast({

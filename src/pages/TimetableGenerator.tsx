@@ -1,8 +1,5 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/PythonAuthContext';
-
-
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -74,12 +71,15 @@ const TimetableGenerator = () => {
 
   const fetchDepartments = async () => {
     try {
-      const { data, error } = await supabase
-        .from('departments')
-        .select('*')
-        .order('name');
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('http://localhost:5000/api/departments', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
+      const data = await response.json();
       setDepartments(data || []);
       
       // Auto-select user's department if they are dept_admin
@@ -101,34 +101,23 @@ const TimetableGenerator = () => {
   const fetchDepartmentData = async () => {
     try {
       setLoading(true);
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
 
       // Fetch subjects
-      const { data: subjectData, error: subjectError } = await supabase
-        .from('subjects')
-        .select('*')
-        .eq('department_id', selectedDepartment)
-        .order('name');
-
-      if (subjectError) throw subjectError;
+      const subjectRes = await fetch('http://localhost:5000/api/subjects', { headers });
+      const subjectData = await subjectRes.json();
 
       // Fetch staff
-      const { data: staffData, error: staffError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('department_id', selectedDepartment)
-        .eq('role', 'staff')
-        .order('name');
-
-      if (staffError) throw staffError;
+      const staffRes = await fetch('http://localhost:5000/api/staff', { headers });
+      const staffData = await staffRes.json();
 
       // Fetch classrooms
-      const { data: classroomData, error: classroomError } = await supabase
-        .from('classrooms')
-        .select('*')
-        .eq('department_id', selectedDepartment)
-        .order('name');
-
-      if (classroomError) throw classroomError;
+      const classroomRes = await fetch('http://localhost:5000/api/classrooms', { headers });
+      const classroomData = await classroomRes.json();
 
       setSubjects(subjectData || []);
       setStaff(staffData || []);
@@ -160,7 +149,7 @@ const TimetableGenerator = () => {
       for (const subject of subjects) {
         // Find available staff for this subject
         const availableStaff = staff.filter(s => {
-          const selectedSubjects = s.subjects_selected ? JSON.parse(s.subjects_selected) : [];
+          const selectedSubjects = s.subjects_selected ? s.subjects_selected.split(',') : [];
           return selectedSubjects.includes(subject.id) || selectedSubjects.length === 0;
         });
 
@@ -247,23 +236,29 @@ const TimetableGenerator = () => {
 
   const saveTimetable = async () => {
     try {
-      // Delete existing timetable for this department
-      await supabase
-        .from('timetables')
-        .delete()
-        .eq('department_id', selectedDepartment);
-
-      // Insert new timetable
-      const { error } = await supabase
-        .from('timetables')
-        .insert(generatedTimetable);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Timetable saved successfully!",
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('http://localhost:5000/api/timetables', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          department_id: selectedDepartment,
+          timetable: generatedTimetable
+        }),
       });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Timetable saved successfully!",
+        });
+      } else {
+        throw new Error(result.error || 'Failed to save timetable');
+      }
     } catch (error) {
       console.error('Error saving timetable:', error);
       toast({

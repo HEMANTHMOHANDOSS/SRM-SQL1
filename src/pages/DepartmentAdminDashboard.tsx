@@ -1,8 +1,5 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/PythonAuthContext';
-
-
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -51,39 +48,27 @@ const DepartmentAdminDashboard = () => {
 
   const fetchDepartmentData = async () => {
     try {
-      // Fetch subjects
-      const { data: subjectData, error: subjectError } = await supabase
-        .from('subjects')
-        .select('*')
-        .eq('department_id', user!.department_id!)
-        .order('name');
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
 
-      if (subjectError) throw subjectError;
+      // Fetch subjects
+      const subjectRes = await fetch('http://localhost:5000/api/subjects', { headers });
+      const subjectData = await subjectRes.json();
 
       // Fetch classrooms
-      const { data: classroomData, error: classroomError } = await supabase
-        .from('classrooms')
-        .select('*')
-        .eq('department_id', user!.department_id!)
-        .order('name');
-
-      if (classroomError) throw classroomError;
+      const classroomRes = await fetch('http://localhost:5000/api/classrooms', { headers });
+      const classroomData = await classroomRes.json();
 
       // Fetch staff
-      const { data: staffData, error: staffError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('department_id', user!.department_id!)
-        .eq('role', 'staff')
-        .order('name');
-
-      if (staffError) throw staffError;
+      const staffRes = await fetch('http://localhost:5000/api/staff', { headers });
+      const staffData = await staffRes.json();
 
       // Fetch timetable count
-      const { count: timetableCount } = await supabase
-        .from('timetables')
-        .select('*', { count: 'exact', head: true })
-        .eq('department_id', user!.department_id!);
+      const timetableRes = await fetch('http://localhost:5000/api/timetables/stats', { headers });
+      const timetableStats = await timetableRes.json();
 
       setSubjects(subjectData || []);
       setClassrooms(classroomData || []);
@@ -92,7 +77,7 @@ const DepartmentAdminDashboard = () => {
         totalSubjects: subjectData?.length || 0,
         totalClassrooms: classroomData?.length || 0,
         totalStaff: staffData?.length || 0,
-        activeTimetables: timetableCount || 0,
+        activeTimetables: timetableStats?.total || 0,
       });
     } catch (error) {
       console.error('Error fetching department data:', error);

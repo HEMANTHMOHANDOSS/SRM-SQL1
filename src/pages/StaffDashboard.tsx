@@ -1,7 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/ClerkAuthContext';
-
+import { useAuth } from '../contexts/PythonAuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -25,7 +23,7 @@ interface Constraint {
 }
 
 const StaffDashboard = () => {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [constraints, setConstraints] = useState<Constraint[]>([]);
@@ -40,42 +38,26 @@ const StaffDashboard = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch subjects for the department
-      const { data: subjectData, error: subjectError } = await supabase
-        .from('subjects')
-        .select('*')
-        .eq('department_id', user!.department_id!)
-        .order('name');
+      const token = localStorage.getItem('auth_token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
 
-      if (subjectError) {
-        console.error('Subject fetch error:', subjectError);
-        throw subjectError;
-      }
+      // Fetch subjects for the department
+      const subjectRes = await fetch('http://localhost:5000/api/subjects', { headers });
+      const subjectData = await subjectRes.json();
 
       // Fetch constraints for staff role
-      const { data: constraintData, error: constraintError } = await supabase
-        .from('constraints')
-        .select('*')
-        .or(`department_id.eq.${user!.department_id!},department_id.is.null`)
-        .eq('role', user!.staff_role!);
-
-      if (constraintError) {
-        console.error('Constraint fetch error:', constraintError);
-        throw constraintError;
-      }
+      const constraintRes = await fetch('http://localhost:5000/api/constraints', { headers });
+      const constraintData = await constraintRes.json();
 
       setSubjects(subjectData || []);
       setConstraints(constraintData || []);
 
       // Load selected subjects if locked
       if (user?.subjects_locked && user?.subjects_selected) {
-        try {
-          const parsed = JSON.parse(user.subjects_selected);
-          setSelectedSubjects(Array.isArray(parsed) ? parsed : []);
-        } catch (e) {
-          console.error('Error parsing subjects_selected:', e);
-          setSelectedSubjects([]);
-        }
+        setSelectedSubjects(user.subjects_selected);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -139,23 +121,31 @@ const StaffDashboard = () => {
     setSaving(true);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          subjects_selected: JSON.stringify(selectedSubjects),
-          subjects_locked: true
-        })
-        .eq('id', user!.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Subject selection saved and locked successfully!",
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('http://localhost:5000/api/subjects/select', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subject_ids: selectedSubjects
+        }),
       });
 
-      // Refresh the page to get updated user data
-      window.location.reload();
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Subject selection saved and locked successfully!",
+        });
+
+        // Refresh the page to get updated user data
+        window.location.reload();
+      } else {
+        throw new Error(result.error || 'Failed to save selection');
+      }
     } catch (error) {
       console.error('Error saving selection:', error);
       toast({
@@ -170,7 +160,7 @@ const StaffDashboard = () => {
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      await logout();
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out",
@@ -278,14 +268,7 @@ const StaffDashboard = () => {
                 </div>
                 <div className="grid gap-4">
                   {subjects
-                    .filter(subject => {
-                      try {
-                        const selected = user?.subjects_selected ? JSON.parse(user.subjects_selected) : [];
-                        return Array.isArray(selected) ? selected.includes(subject.id) : false;
-                      } catch (e) {
-                        return false;
-                      }
-                    })
+                    .filter(subject => user?.subjects_selected?.includes(subject.id))
                     .map((subject) => (
                       <div key={subject.id} className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
                         <div>
@@ -340,14 +323,7 @@ const StaffDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {user?.subjects_locked ? (() => {
-                  try {
-                    const selected = user?.subjects_selected ? JSON.parse(user.subjects_selected) : [];
-                    return Array.isArray(selected) ? selected.length : 0;
-                  } catch (e) {
-                    return 0;
-                  }
-                })() : selectedSubjects.length}
+                {user?.subjects_locked ? user.subjects_selected?.length || 0 : selectedSubjects.length}
               </div>
             </CardContent>
           </Card>

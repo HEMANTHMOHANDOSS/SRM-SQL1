@@ -1,5 +1,3 @@
-// File: components/MainAdminDashboard.tsx
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/PythonAuthContext';
 import { Button } from '../components/ui/button';
@@ -8,7 +6,6 @@ import { Badge } from '../components/ui/badge';
 import { Users, Building2, BookOpen, Calendar, LogOut, Plus } from 'lucide-react';
 import { toast } from '../hooks/use-toast';
 import CreateDepartmentDialog from '../components/CreateDepartmentDialog';
-import ConstraintsManager from '../components/ConstraintsManager';
 
 interface Department {
   id: string;
@@ -35,7 +32,6 @@ const MainAdminDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [showCreateDepartment, setShowCreateDepartment] = useState(false);
-  const [showConstraints, setShowConstraints] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -43,7 +39,7 @@ const MainAdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const headers = {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -52,29 +48,34 @@ const MainAdminDashboard = () => {
       // Fetch departments
       const deptRes = await fetch('http://localhost:5000/api/departments', { headers });
       const deptJson = await deptRes.json();
-      setDepartments(deptJson);
+      setDepartments(deptJson || []);
 
       // Fetch users
       const userRes = await fetch('http://localhost:5000/api/users', { headers });
       const userJson = await userRes.json();
-      setUsers(userJson);
+      setUsers(userJson || []);
 
-      // Stats
+      // Fetch subjects count
       const subjectRes = await fetch('http://localhost:5000/api/subjects', { headers });
       const subjectJson = await subjectRes.json();
 
+      // Fetch timetable stats
       const timetableRes = await fetch('http://localhost:5000/api/timetables/stats', { headers });
       const timetableJson = await timetableRes.json();
 
       setStats({
-        totalUsers: userJson.length || 0,
-        totalDepartments: deptJson.length || 0,
-        totalSubjects: subjectJson.length || 0,
-        totalTimetables: timetableJson.total || 0,
+        totalUsers: userJson?.length || 0,
+        totalDepartments: deptJson?.length || 0,
+        totalSubjects: subjectJson?.length || 0,
+        totalTimetables: timetableJson?.total || 0,
       });
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast({ title: 'Error', description: 'Failed to fetch dashboard data', variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to fetch dashboard data', 
+        variant: 'destructive' 
+      });
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,10 @@ const MainAdminDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    toast({ title: 'Logged Out', description: 'You have been successfully logged out' });
+    toast({ 
+      title: 'Logged Out', 
+      description: 'You have been successfully logged out' 
+    });
   };
 
   if (loading) {
@@ -198,8 +202,11 @@ const MainAdminDashboard = () => {
         </div>
       </div>
 
-      <CreateDepartmentDialog open={showCreateDepartment} onOpenChange={setShowCreateDepartment} onCreated={fetchData} />
-      <ConstraintsManager open={showConstraints} onOpenChange={setShowConstraints} />
+      <CreateDepartmentDialog 
+        open={showCreateDepartment} 
+        onOpenChange={setShowCreateDepartment} 
+        onDepartmentCreated={fetchData} 
+      />
     </div>
   );
 };
